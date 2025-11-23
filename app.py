@@ -3,51 +3,58 @@ from db import init_db, get_db
 
 app = Flask(__name__)
 
-# ------------------ ROUTES ------------------ #
+# main homepage
+@app.route("/")
+def index():
+    return render_template("index.html")
 
-@app.route('/')
-def home():
-    return render_template('index.html')
 
-@app.route('/add', methods=['POST'])
-def add_transaction():
+# add new transaction
+@app.route("/add", methods=["POST"])
+def add():
     data = request.json
-    conn = get_db()
-    cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO transactions (type, category, note, amount, date)
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        data['type'],
-        data['category'],
-        data.get('note', ''),
-        data['amount'],
-        data['date']
-    ))
+    conn = get_db()
+    cur = conn.cursor()
+
+    # inserting into db
+    cur.execute(
+        "INSERT INTO transactions (type, category, note, amount, date) VALUES (?, ?, ?, ?, ?)",
+        (
+            data["type"],
+            data["category"],
+            data.get("note", ""),
+            data["amount"],
+            data["date"]
+        )
+    )
 
     conn.commit()
     conn.close()
 
-    return jsonify({"status": "success"})
+    return jsonify({"ok": True})
 
-@app.route('/all')
-def get_all():
+
+# get all transactions
+@app.route("/all")
+def all_data():
     conn = get_db()
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
-    cursor.execute("SELECT * FROM transactions ORDER BY date DESC")
-    rows = cursor.fetchall()
+    cur.execute("SELECT * FROM transactions ORDER BY date DESC")
+    rows = cur.fetchall()
 
-    data = [dict(row) for row in rows]
+    out = []
+    for r in rows:
+        out.append(dict(r))
 
     conn.close()
-    return jsonify(data)
+    return jsonify(out)
 
-# ------------------ INITIALIZE DB ------------------ #
 
+# initialize database table
 init_db()
 
-# ------------------ RUN SERVER ------------------ #
-if __name__ == '__main__':
+# running server
+if __name__ == "__main__":
     app.run(debug=True)
