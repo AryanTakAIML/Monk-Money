@@ -1,16 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monk Money</title>
 
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- CSS from Flask -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   </head>
 
@@ -19,7 +14,7 @@
       <header>
         <div>
           <h1>Monk Money</h1>
-          <p>Track your income, spending, and stay on top of your cash flow.</p>
+          <p>Track your income and expenses.</p>
         </div>
       </header>
 
@@ -28,23 +23,25 @@
       <section class="layout">
         <div class="panel">
           <h2>Add transaction</h2>
-          <form id="transaction-form">
+
+          <form id="f">
             <div>
-              <label for="type">Type</label>
+              <label>Type</label>
               <div class="grid-two">
-                <select id="type" required>
+                <select id="t">
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
                 </select>
-                <input type="date" id="date" required />
+
+                <input type="date" id="d">
               </div>
             </div>
 
             <div class="grid-two">
               <div>
-                <label for="category">Category</label>
-                <select id="category" required>
-                  <option value="" disabled selected>Select</option>
+                <label>Category</label>
+                <select id="c">
+                  <option disabled selected>Select</option>
                   <option value="Salary">Salary</option>
                   <option value="Savings">Savings</option>
                   <option value="Food">Food</option>
@@ -58,48 +55,42 @@
               </div>
 
               <div>
-                <label for="amount">Amount</label>
-                <input type="number" id="amount" min="0.01" step="0.01" required />
+                <label>Amount</label>
+                <input type="number" id="a" min="0.01" step="0.01">
               </div>
             </div>
 
             <div>
-              <label for="note">Note</label>
-              <textarea id="note" rows="3" placeholder="Optional details"></textarea>
+              <label>Note</label>
+              <textarea id="n" rows="3"></textarea>
             </div>
 
-            <button class="primary" type="submit">Save transaction</button>
+            <button class="primary" type="submit">Save</button>
           </form>
         </div>
 
         <div class="panel">
           <div class="transactions-header">
             <h2>Activity</h2>
-            <select id="filter-range">
-              <option value="all">All time</option>
+            <select id="filter">
+              <option value="all">All</option>
               <option value="30">Last 30 days</option>
               <option value="7">Last 7 days</option>
               <option value="today">Today</option>
             </select>
           </div>
 
-          <div class="table-wrapper" id="transactions-wrapper">
-            <table class="transactions" id="transactions-table"></table>
-          </div>
+          <div class="table-wrapper" id="wrap"></div>
         </div>
       </section>
 
-      <section class="panel panel-spaced">
-        <div class="transactions-header">
-          <h2>Spending snapshot</h2>
-        </div>
-
-        <div id="category-breakdown" class="chart-group"></div>
+      <section class="panel" style="margin-top:20px">
+        <h2>Spending snapshot</h2>
+        <div id="break"></div>
       </section>
     </div>
 
-    <!-- Transaction row template -->
-    <template id="transaction-row">
+    <template id="row">
       <tr>
         <td class="tag type"></td>
         <td class="desc"></td>
@@ -110,137 +101,89 @@
       </tr>
     </template>
 
-    <!-- ======================= JAVASCRIPT ======================= -->
     <script>
-      const $ = (selector) => document.querySelector(selector);
-      const $$ = (selector) => document.querySelectorAll(selector);
+      const $ = (x) => document.querySelector(x);
 
-      const form = $("#transaction-form");
-      const summaryEl = $("#summary");
-      const wrapperEl = $("#transactions-wrapper");
-      const template = $("#transaction-row");
-      const filterSelect = $("#filter-range");
-      const breakdownEl = $("#category-breakdown");
+      let state = { all: [], show: [] };
 
-      const state = {
-        transactions: [],
-        filtered: [],
-      };
-
-      const formatCurrency = (value) =>
-        new Intl.NumberFormat("en-IN", {
-          style: "currency",
-          currency: "INR",
-          maximumFractionDigits: 2,
-        }).format(value);
-
-      // --------------------- LOAD DATA FROM BACKEND ---------------------
-      async function loadFromBackend() {
-        const response = await fetch("/all");
-        const data = await response.json();
-
-        state.transactions = data;
-        state.filtered = data;
-
-        render();
+      function money(v){
+        return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(v);
       }
 
-      // --------------------- APPLY FILTER ---------------------
-      const applyFilter = () => {
-        const value = filterSelect.value;
+      async function load(){
+        let r = await fetch("/all");
+        let data = await r.json();
+        state.all = data;
+        state.show = data;
+        run();
+      }
 
-        if (value === "all") {
-          state.filtered = [...state.transactions];
+      function apply(){
+        let f = $("#filter").value;
+
+        if(f=="all"){
+          state.show = [...state.all];
           return;
         }
 
-        const today = new Date();
-        let cutoff;
-
-        if (value === "today") {
-          cutoff = today.toISOString().slice(0, 10);
-          state.filtered = state.transactions.filter((t) => t.date === cutoff);
+        let today = new Date();
+        if(f=="today"){
+          let d = today.toISOString().slice(0,10);
+          state.show = state.all.filter(x => x.date == d);
           return;
         }
 
-        const days = Number(value);
-        cutoff = new Date(today);
-        cutoff.setDate(today.getDate() - days);
+        let days = Number(f);
+        let cut = new Date();
+        cut.setDate(today.getDate() - days);
 
-        state.filtered = state.transactions.filter(
-          (t) => new Date(t.date) >= cutoff
-        );
-      };
+        state.show = state.all.filter(x => new Date(x.date) >= cut);
+      }
 
-      // --------------------- RENDER SUMMARY ---------------------
-      const renderSummary = () => {
-        const income = state.filtered
-          .filter((t) => t.type === "income")
-          .reduce((acc, t) => acc + Number(t.amount), 0);
+      function sum(){
+        let inc = 0, exp = 0;
 
-        const expense = state.filtered
-          .filter((t) => t.type === "expense")
-          .reduce((acc, t) => acc + Number(t.amount), 0);
+        state.show.forEach(x=>{
+          if(x.type=="income") inc += Number(x.amount);
+          else exp += Number(x.amount);
+        });
 
-        const balance = income - expense;
-        const burnRate =
-          income > 0 ? Math.min(100, Math.round((expense / income) * 100)) : 0;
+        let bal = inc - exp;
+        let br = inc>0 ? Math.round((exp/inc)*100) : 0;
 
-        const cards = [
-          {
-            label: "Net balance",
-            value: formatCurrency(balance),
-            pill: {
-              label: balance >= 0 ? "You are in the green" : "In the red",
-              tone: balance >= 0 ? "success" : "danger",
-            },
-          },
-          {
-            label: "Total income",
-            value: formatCurrency(income),
-            pill: {
-              label: "+ steady inflow",
-              tone: "success",
-            },
-          },
-          {
-            label: "Total expenses",
-            value: formatCurrency(expense),
-            pill: {
-              label: `Burn ${burnRate}% of income`,
-              tone: "danger",
-            },
-          },
-        ];
-
-        summaryEl.innerHTML = cards
-          .map(
-            (card) => `
+        $("#summary").innerHTML = `
           <article class="card">
-            <h3>${card.label}</h3>
-            <div class="value">${card.value}</div>
-            <span class="pill ${card.pill.tone}">
-              ${card.pill.label}
-            </span>
+            <h3>Net balance</h3>
+            <div class="value">${money(bal)}</div>
+            <span class="pill ${bal>=0?"success":"danger"}">${bal>=0?"In green":"In red"}</span>
           </article>
-        `
-          )
-          .join("");
-      };
 
-      // --------------------- RENDER TRANSACTIONS ---------------------
-      const renderTransactions = () => {
-        if (!state.filtered.length) {
-          wrapperEl.innerHTML =
-            '<div class="empty">No transactions yet.</div>';
+          <article class="card">
+            <h3>Total income</h3>
+            <div class="value">${money(inc)}</div>
+            <span class="pill success">Steady inflow</span>
+          </article>
+
+          <article class="card">
+            <h3>Total expenses</h3>
+            <div class="value">${money(exp)}</div>
+            <span class="pill danger">Burn ${br}%</span>
+          </article>
+        `;
+      }
+
+      function table(){
+        let w = $("#wrap");
+
+        if(state.show.length==0){
+          w.innerHTML = "<div class='empty'>No data</div>";
           return;
         }
 
-        wrapperEl.innerHTML = "";
-        const table = document.createElement("table");
-        table.className = "transactions";
+        let t = document.createElement("table");
+        t.className = "transactions";
 
-        table.innerHTML = `
+        t.innerHTML = `
           <thead>
             <tr>
               <th>Type</th>
@@ -254,109 +197,95 @@
           <tbody></tbody>
         `;
 
-        const tbody = table.querySelector("tbody");
+        let body = t.querySelector("tbody");
+        let temp = $("#row");
 
-        state.filtered
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
-          .forEach((tx) => {
-            const row = template.content.cloneNode(true);
+        state.show.forEach(x=>{
+          let r = temp.content.cloneNode(true);
 
-            row.querySelector(".type").textContent =
-              tx.type === "income" ? "Income" : "Expense";
-            row
-              .querySelector(".type")
-              .classList.add(tx.type === "income" ? "success" : "danger");
+          r.querySelector(".type").textContent = x.type=="income"?"Income":"Expense";
+          r.querySelector(".type").classList.add(x.type=="income"?"success":"danger");
+          r.querySelector(".desc").textContent = x.category;
+          r.querySelector(".cat").textContent = x.category;
+          r.querySelector(".note").textContent = x.note || "-";
+          r.querySelector(".amount").textContent = money(x.type=="income"?x.amount:-x.amount);
+          r.querySelector(".date").textContent = x.date;
 
-            row.querySelector(".desc").textContent = tx.category;
-            row.querySelector(".cat").textContent = tx.category;
-            row.querySelector(".note").textContent = tx.note || "-";
-            row.querySelector(".amount").textContent = formatCurrency(
-              tx.type === "income" ? tx.amount : -tx.amount
-            );
-            row.querySelector(".date").textContent = tx.date;
+          body.appendChild(r);
+        });
 
-            tbody.appendChild(row);
-          });
+        w.innerHTML = "";
+        w.appendChild(t);
+      }
 
-        wrapperEl.appendChild(table);
-      };
+      function breakdown(){
+        let arr = state.show.filter(x=>x.type=="expense");
 
-      // --------------------- CATEGORY BREAKDOWN ---------------------
-      const renderBreakdown = () => {
-        const expenses = state.filtered.filter((t) => t.type === "expense");
-
-        if (!expenses.length) {
-          breakdownEl.innerHTML =
-            '<div class="empty">Add expenses to see breakdown.</div>';
+        if(arr.length==0){
+          $("#break").innerHTML = "<div class='empty'>Add expenses</div>";
           return;
         }
 
-        const totals = expenses.reduce((acc, tx) => {
-          acc[tx.category] = (acc[tx.category] || 0) + Number(tx.amount);
-          return acc;
-        }, {});
+        let map = {};
 
-        const overall = Object.values(totals).reduce((a, b) => a + b, 0);
+        arr.forEach(x=>{
+          map[x.category] = (map[x.category]||0) + Number(x.amount);
+        });
 
-        breakdownEl.innerHTML = Object.entries(totals)
-          .map(([category, amount]) => {
-            const pct = amount / overall;
+        let tot = Object.values(map).reduce((a,b)=>a+b,0);
 
-            return `
+        $("#break").innerHTML = Object.entries(map).map(([cat,val])=>{
+          let p = val / tot;
+          return `
             <div>
               <div class="transactions-header" style="margin-bottom:6px">
-                <strong>${category}</strong>
-                <span>${formatCurrency(amount)} · ${(pct * 100).toFixed(0)}%</span>
+                <strong>${cat}</strong>
+                <span>${money(val)} · ${(p*100).toFixed(0)}%</span>
               </div>
-              <div class="bar animate" style="--value:${pct}">
+              <div class="bar animate" style="--value:${p}">
                 <span></span>
               </div>
             </div>
           `;
-          })
-          .join("");
-      };
+        }).join("");
+      }
 
-      // --------------------- RENDER EVERYTHING ---------------------
-      const render = () => {
-        applyFilter();
-        renderSummary();
-        renderTransactions();
-        renderBreakdown();
-      };
+      function run(){
+        apply();
+        sum();
+        table();
+        breakdown();
+      }
 
-      // --------------------- FORM SUBMIT (SEND TO BACKEND) ---------------------
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
+      $("#f").addEventListener("submit", async (e)=>{
+        e.preventDefault();
 
-        const tx = {
-          type: $("#type").value,
-          category: $("#category").value || "Other",
-          note: $("#note").value.trim(),
-          amount: Number($("#amount").value),
-          date: $("#date").value || new Date().toISOString().slice(0, 10),
+        let tx = {
+          type: $("#t").value,
+          category: $("#c").value,
+          note: $("#n").value,
+          amount: Number($("#a").value),
+          date: $("#d").value || new Date().toISOString().slice(0,10)
         };
 
-        if (tx.amount <= 0) {
-          alert("Enter a valid amount.");
+        if(tx.amount <= 0){
+          alert("enter valid amount");
           return;
         }
 
-        await fetch("/add", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(tx),
+        await fetch("/add",{
+          method:"POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(tx)
         });
 
-        form.reset();
-        loadFromBackend();
+        $("#f").reset();
+        load();
       });
 
-      // --------------------- FILTER CHANGE ---------------------
-      filterSelect.addEventListener("change", render);
+      $("#filter").addEventListener("change", run);
 
-      // --------------------- INITIAL LOAD ---------------------
-      loadFromBackend();
+      load();
     </script>
   </body>
 </html>
